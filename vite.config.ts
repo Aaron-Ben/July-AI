@@ -1,8 +1,7 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [],
   server: {
     port: 5173,
     strictPort: true,
@@ -13,8 +12,8 @@ export default defineConfig({
     outDir: 'dist',
     rollupOptions: {
       input: {
-        index: 'src/sidebar/index.html',
-        floatingBall: 'src/floatingBall.js'
+        floatingBall: 'src/floatingBall.js',
+        ask: 'src/ask.js'
       },
       output: {
         entryFileNames: 'assets/[name].js',

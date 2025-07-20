@@ -12,10 +12,7 @@
     },
     "default_popup": ""
   },
-  "permissions": ["sidePanel", "storage", "activeTab"],
-  "side_panel": {
-    "default_path": "src/sidebar/index.html"
-  },
+  "permissions": ["storage", "activeTab"],
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -25,7 +22,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["assets/floatingBall.js"]
+      "js": ["assets/floatingBall.js", "assets/ask.js"]
     }
   ]
 }

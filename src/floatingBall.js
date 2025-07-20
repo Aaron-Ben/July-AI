@@ -6,6 +6,41 @@ console.log("July AI Extension: DOM ready state:", document.readyState);
 function createFloatingBall() {
   console.log("July AI Extension: Creating floating ball...");
 
+  // 初始化位置变量
+  let currentPosition = { x: 0, y: 0, edgeType: null };
+
+  // 验证并设置位置的函数
+  function validateAndSetPosition(position) {
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+    const ballWidth = 60;
+    const ballHeight = 60;
+    const margin = 20;
+
+    let left = parseInt(position.left) || 0;
+    let top = parseInt(position.top) || 0;
+
+    // 确保不超出窗口边界
+    left = Math.max(margin, Math.min(left, windowWidth - ballWidth - margin));
+    top = Math.max(margin, Math.min(top, windowHeight - ballHeight - margin));
+
+    container.style.left = left + "px";
+    container.style.top = top + "px";
+    container.style.right = "auto";
+    container.style.bottom = "auto";
+  }
+
+  // 加载保存的位置
+  function loadSavedPosition() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.sync.get(['ballPosition'], function(result) {
+        if (result.ballPosition) {
+          validateAndSetPosition(result.ballPosition);
+        }
+      });
+    }
+  }
+
   // 创建容器
   const container = document.createElement("div");
   container.className = "ball-container";
@@ -98,10 +133,6 @@ function createFloatingBall() {
     this.style.transform = "translateX(-50%) scale(1)";
   });
 
-  // 添加点击事件
-  ball.addEventListener("click", function () {
-    console.log("Ball clicked - toggle dialog");
-  });
 
   // 添加悬停效果
   ball.addEventListener("mouseenter", function () {
@@ -207,7 +238,9 @@ function createFloatingBall() {
       }
 
       // 保存位置
-      chrome.storage.sync.set({ ballPosition: currentPosition });
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.sync.set({ ballPosition: currentPosition });
+      }
     }, 16);
   }
 
@@ -217,6 +250,9 @@ function createFloatingBall() {
     initialX = e.clientX - rect.left;
     initialY = e.clientY - rect.top;
     e.preventDefault();
+    
+    // 标记开始拖拽，防止点击事件
+    ball._isDragging = true;
   });
 
   document.addEventListener("mousemove", function (e) {
@@ -246,6 +282,14 @@ function createFloatingBall() {
     if (snapResult.edgeType) {
       ball.classList.add(`edge-${snapResult.edgeType}`);
     }
+    
+    // 如果对话框已打开，跟随悬浮球移动
+    const dialog = document.getElementById("july-ai-dialog");
+    if (dialog && dialog.style.display === "flex" && window.calculateDialogPosition) {
+      const dialogPosition = window.calculateDialogPosition(ball);
+      dialog.style.left = dialogPosition.left + "px";
+      dialog.style.top = dialogPosition.top + "px";
+    }
   });
 
   document.addEventListener("mouseup", function () {
@@ -253,6 +297,11 @@ function createFloatingBall() {
     // 鼠标释放时检查是否需要边缘吸附
     const rect = container.getBoundingClientRect();
     updatePosition(rect.left, rect.top);
+    
+    // 延迟清除拖拽标记，防止点击事件
+    setTimeout(() => {
+      ball._isDragging = false;
+    }, 100);
   });
 
   // 添加CSS样式
