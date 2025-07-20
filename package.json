@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "vite build && copy manifest.json dist\\"
+    "dev": "vite",
+    "build": "vite build && copy manifest.json dist\\ && copy public\\icons dist\\icons"
   },
   "keywords": [],
   "author": "",
@@ -18,5 +19,8 @@
     "react-dom": "^19.1.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.1"
   }
 }
