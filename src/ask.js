@@ -17,6 +17,12 @@ function createAskDialog() {
     flex-direction: column;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     border: 1px solid #e0e0e0;
+    resize: both;
+    overflow: hidden;
+    min-width: 300px;
+    min-height: 400px;
+    max-width: 80vw;
+    max-height: 80vh;
   `;
 
   // 创建头部
@@ -29,6 +35,8 @@ function createAskDialog() {
     border-bottom: 1px solid #e0e0e0;
     background: #f8f9fa;
     border-radius: 12px 12px 0 0;
+    cursor: move;
+    user-select: none;
   `;
 
   const title = document.createElement("div");
@@ -169,10 +177,144 @@ function createAskDialog() {
   inputArea.appendChild(input);
   inputArea.appendChild(sendButton);
 
+  // 创建调整大小的手柄
+  const resizeHandle = document.createElement("div");
+  resizeHandle.style.cssText = `
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 20px;
+    height: 20px;
+    cursor: se-resize;
+    background: linear-gradient(135deg, transparent 50%, #ccc 50%);
+    border-radius: 0 0 12px 0;
+    z-index: 2147483646;
+  `;
+
   // 组装对话框
   dialogContainer.appendChild(header);
   dialogContainer.appendChild(messagesContainer);
   dialogContainer.appendChild(inputArea);
+  dialogContainer.appendChild(resizeHandle);
+
+  // 添加拖拽移动功能
+  let isDragging = false;
+  let isResizing = false;
+  let startX = 0;
+  let startY = 0;
+  let startWidth = 0;
+  let startHeight = 0;
+  let startLeft = 0;
+  let startTop = 0;
+
+  // 头部拖拽移动
+  header.addEventListener("mousedown", (e) => {
+    if (e.target === closeButton) return;
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startLeft = parseInt(dialogContainer.style.left) || 0;
+    startTop = parseInt(dialogContainer.style.top) || 0;
+    
+    // 记录悬浮球初始位置-- 拖拽对话框时，悬浮球也跟着移动
+    const ballContainer = document.querySelector('.ball-container');
+    if (ballContainer) {
+      const ballRect = ballContainer.getBoundingClientRect();
+      dialogContainer._ballStartLeft = ballRect.left;
+      dialogContainer._ballStartTop = ballRect.top;
+    }
+    
+    e.preventDefault();
+  });
+
+  // 调整大小功能
+  resizeHandle.addEventListener("mousedown", (e) => {
+    isResizing = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startWidth = dialogContainer.offsetWidth;
+    startHeight = dialogContainer.offsetHeight;
+    e.preventDefault();
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (isDragging) {
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+      
+      const newLeft = startLeft + deltaX;
+      const newTop = startTop + deltaY;
+      
+      // 确保不超出窗口边界
+      const maxLeft = window.innerWidth - dialogContainer.offsetWidth;
+      const maxTop = window.innerHeight - dialogContainer.offsetHeight;
+      
+      dialogContainer.style.left = Math.max(0, Math.min(newLeft, maxLeft)) + "px";
+      dialogContainer.style.top = Math.max(0, Math.min(newTop, maxTop)) + "px";
+      
+      // 同步移动悬浮球 - 使用相对位移-- 拖拽对话框时，悬浮球也跟着移动
+      const ballContainer = document.querySelector('.ball-container');
+      if (ballContainer && dialogContainer._ballStartLeft !== undefined) {
+        const ballDeltaX = deltaX;
+        const ballDeltaY = deltaY;
+        
+        const newBallLeft = dialogContainer._ballStartLeft + ballDeltaX;
+        const newBallTop = dialogContainer._ballStartTop + ballDeltaY;
+        
+        // 确保悬浮球不超出窗口边界
+        const ballMaxLeft = window.innerWidth - ballContainer.offsetWidth;
+        const ballMaxTop = window.innerHeight - ballContainer.offsetHeight;
+        
+        ballContainer.style.left = Math.max(0, Math.min(newBallLeft, ballMaxLeft)) + "px";
+        ballContainer.style.top = Math.max(0, Math.min(newBallTop, ballMaxTop)) + "px";
+        ballContainer.style.right = "auto";
+        ballContainer.style.bottom = "auto";
+      }
+    }
+    
+    if (isResizing) {
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+      
+      const newWidth = Math.max(300, Math.min(startWidth + deltaX, window.innerWidth * 0.8));
+      const newHeight = Math.max(400, Math.min(startHeight + deltaY, window.innerHeight * 0.8));
+      
+      dialogContainer.style.width = newWidth + "px";
+      dialogContainer.style.height = newHeight + "px";
+    }
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (isResizing) {
+      // 调整大小完成后重新定位对话框
+      setTimeout(() => {
+        repositionDialog();
+      }, 10);
+    }
+    
+    if (isDragging) {
+      // 保存悬浮球位置 - 拖拽对话框时，悬浮球也跟着移动
+      const ballContainer = document.querySelector('.ball-container');
+      if (ballContainer) {
+        const rect = ballContainer.getBoundingClientRect();
+        const currentPosition = {
+          x: rect.left,
+          y: rect.top,
+          edgeType: null
+        };
+        
+        // 保存位置到存储
+        if (typeof chrome !== "undefined" && chrome.storage) {
+          chrome.storage.sync.set({ ballPosition: currentPosition });
+        }
+      }
+      
+
+    }
+    
+    isDragging = false;
+    isResizing = false;
+  });
 
   // 添加到页面
   document.body.appendChild(dialogContainer);
@@ -245,8 +387,9 @@ function createMessage(content, sender) {
 // 计算对话框位置 - 全局函数
 window.calculateDialogPosition = function(ballElement) {
   const ballRect = ballElement.getBoundingClientRect();
-  const dialogWidth = 400;
-  const dialogHeight = 500;
+  const dialog = document.getElementById("july-ai-dialog");
+  const dialogWidth = dialog ? dialog.offsetWidth : 400;
+  const dialogHeight = dialog ? dialog.offsetHeight : 500;
   const margin = 20;
 
   let left, top;
@@ -361,6 +504,23 @@ function showDialog() {
   }
 }
 
+// 重新定位对话框（当大小改变时调用）
+function repositionDialog() {
+  const dialog = document.getElementById("july-ai-dialog");
+  const ball = document.getElementById("ai-assistant-ball");
+  
+  if (!dialog || !ball || dialog.style.display !== "flex") return;
+
+  const position = window.calculateDialogPosition(ball);
+  
+  // 确保对话框不超出窗口边界
+  const maxLeft = window.innerWidth - dialog.offsetWidth;
+  const maxTop = window.innerHeight - dialog.offsetHeight;
+  
+  dialog.style.left = Math.max(0, Math.min(position.left, maxLeft)) + "px";
+  dialog.style.top = Math.max(0, Math.min(position.top, maxTop)) + "px";
+}
+
 // 隐藏对话框
 function hideDialog() {
   const dialog = document.getElementById("july-ai-dialog");
@@ -420,6 +580,11 @@ window.JulyAI = window.JulyAI || {};
 window.JulyAI.showDialog = showDialog;
 window.JulyAI.hideDialog = hideDialog;
 window.JulyAI.initializeAskDialog = initializeAskDialog;
+
+// 窗口大小变化时重新定位对话框
+window.addEventListener("resize", () => {
+  repositionDialog();
+});
 
 // 自动初始化
 if (document.readyState === "loading") {

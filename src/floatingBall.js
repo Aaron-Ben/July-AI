@@ -2,6 +2,61 @@
 console.log("July AI Extension: Content script loaded");
 console.log("July AI Extension: DOM ready state:", document.readyState);
 
+// 配置选项
+const CONFIG = {
+  // 按钮排列方式: 'horizontal' (左右排列) 或 'vertical' (上下排列)
+  buttonLayout: 'vertical', // 默认改为上下排列
+  // 是否在顶部和底部都显示按钮
+  showTopBottomButtons: false,
+  // 是否启用智能布局切换（顶部底部边缘时自动切换为左右排列）
+  enableSmartLayout: true
+};
+
+// 配置管理函数
+const ConfigManager = {
+  // 切换布局模式
+  toggleLayout() {
+    CONFIG.buttonLayout = CONFIG.buttonLayout === 'horizontal' ? 'vertical' : 'horizontal';
+    this.updateLayout();
+  },
+  
+  // 切换顶部底部按钮显示
+  toggleTopBottomButtons() {
+    CONFIG.showTopBottomButtons = !CONFIG.showTopBottomButtons;
+    this.updateLayout();
+  },
+  
+  // 切换智能布局
+  toggleSmartLayout() {
+    CONFIG.enableSmartLayout = !CONFIG.enableSmartLayout;
+    this.updateLayout();
+  },
+  
+  // 更新布局
+  updateLayout() {
+    // 重新创建悬浮球
+    const existingContainer = document.querySelector('.ball-container');
+    if (existingContainer) {
+      existingContainer.remove();
+    }
+    createFloatingBall();
+  },
+  
+  // 获取当前配置
+  getConfig() {
+    return { ...CONFIG };
+  },
+  
+  // 设置配置
+  setConfig(newConfig) {
+    Object.assign(CONFIG, newConfig);
+    this.updateLayout();
+  }
+};
+
+// 将配置管理器暴露到全局
+window.JulyAIConfig = ConfigManager;
+
 // 创建悬浮球元素
 function createFloatingBall() {
   console.log("July AI Extension: Creating floating ball...");
@@ -32,8 +87,8 @@ function createFloatingBall() {
 
   // 加载保存的位置
   function loadSavedPosition() {
-    if (typeof chrome !== 'undefined' && chrome.storage) {
-      chrome.storage.sync.get(['ballPosition'], function(result) {
+    if (typeof chrome !== "undefined" && chrome.storage) {
+      chrome.storage.sync.get(["ballPosition"], function (result) {
         if (result.ballPosition) {
           validateAndSetPosition(result.ballPosition);
         }
@@ -90,7 +145,26 @@ function createFloatingBall() {
   const settingsButton = document.createElement("div");
   settingsButton.className = "settings-button";
   settingsButton.title = "设置";
-  settingsButton.style.cssText = `
+  
+  // 根据配置设置按钮位置
+  const buttonStyle = CONFIG.buttonLayout === 'horizontal' ? `
+    position: absolute;
+    top: 50%;
+    left: 100%;
+    transform: translateY(-50%);
+    width: 30px;
+    height: 30px;
+    background-color: #007AFF;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    margin-left: 8px;
+    transition: all 0.3s ease;
+    z-index: 2147483646;
+  ` : `
     position: absolute;
     top: 100%;
     left: 50%;
@@ -108,6 +182,8 @@ function createFloatingBall() {
     transition: all 0.3s ease;
     z-index: 2147483646;
   `;
+  
+  settingsButton.style.cssText = buttonStyle;
 
   // 添加设置图标
   settingsButton.innerHTML = `
@@ -125,14 +201,25 @@ function createFloatingBall() {
   // 添加设置按钮悬停效果
   settingsButton.addEventListener("mouseenter", function () {
     this.style.backgroundColor = "#0056b3";
-    this.style.transform = "translateX(-50%) scale(1.1)";
+    // 根据当前按钮位置判断使用哪种transform
+    const isHorizontal = this.style.left === '100%';
+    if (isHorizontal) {
+      this.style.transform = "translateY(-50%) scale(1.1)";
+    } else {
+      this.style.transform = "translateX(-50%) scale(1.1)";
+    }
   });
 
   settingsButton.addEventListener("mouseleave", function () {
     this.style.backgroundColor = "#007AFF";
-    this.style.transform = "translateX(-50%) scale(1)";
+    // 根据当前按钮位置判断使用哪种transform
+    const isHorizontal = this.style.left === '100%';
+    if (isHorizontal) {
+      this.style.transform = "translateY(-50%) scale(1)";
+    } else {
+      this.style.transform = "translateX(-50%) scale(1)";
+    }
   });
-
 
   // 添加悬停效果
   ball.addEventListener("mouseenter", function () {
@@ -170,7 +257,7 @@ function createFloatingBall() {
       top: `${top}px`,
       right: "auto",
       bottom: "auto",
-      edge: null
+      edge: null,
     };
 
     validateAndSetPosition(newPosition);
@@ -237,8 +324,36 @@ function createFloatingBall() {
         ball.classList.add(`edge-${snapResult.edgeType}`);
       }
 
+      // 智能布局切换：在顶部或底部边缘时切换为左右排列
+      if (CONFIG.enableSmartLayout) {
+        const isTopOrBottom = snapResult.edgeType === 'top' || snapResult.edgeType === 'bottom';
+        const shouldUseHorizontal = isTopOrBottom;
+        
+        // 更新设置按钮位置
+        const settingsButton = container.querySelector('.settings-button');
+        if (settingsButton) {
+          if (shouldUseHorizontal) {
+            // 左右排列
+            settingsButton.style.top = '50%';
+            settingsButton.style.left = '100%';
+            settingsButton.style.transform = 'translateY(-50%)';
+            settingsButton.style.marginLeft = '8px';
+            settingsButton.style.marginTop = '0';
+            settingsButton.style.marginBottom = '0';
+          } else {
+            // 上下排列
+            settingsButton.style.top = '100%';
+            settingsButton.style.left = '50%';
+            settingsButton.style.transform = 'translateX(-50%)';
+            settingsButton.style.marginTop = '8px';
+            settingsButton.style.marginLeft = '0';
+            settingsButton.style.marginBottom = '0';
+          }
+        }
+      }
+
       // 保存位置
-      if (typeof chrome !== 'undefined' && chrome.storage) {
+      if (typeof chrome !== "undefined" && chrome.storage) {
         chrome.storage.sync.set({ ballPosition: currentPosition });
       }
     }, 16);
@@ -250,7 +365,7 @@ function createFloatingBall() {
     initialX = e.clientX - rect.left;
     initialY = e.clientY - rect.top;
     e.preventDefault();
-    
+
     // 标记开始拖拽，防止点击事件
     ball._isDragging = true;
   });
@@ -282,10 +397,50 @@ function createFloatingBall() {
     if (snapResult.edgeType) {
       ball.classList.add(`edge-${snapResult.edgeType}`);
     }
-    
+
+    // 智能布局切换：在拖拽过程中也应用布局切换
+    if (CONFIG.enableSmartLayout) {
+      const isTopOrBottom = snapResult.edgeType === 'top' || snapResult.edgeType === 'bottom';
+      const shouldUseHorizontal = isTopOrBottom;
+      
+      // 更新设置按钮位置
+      const settingsButton = container.querySelector('.settings-button');
+      if (settingsButton) {
+        if (shouldUseHorizontal) {
+          // 左右排列
+          settingsButton.style.top = '50%';
+          settingsButton.style.left = '100%';
+          settingsButton.style.transform = 'translateY(-50%)';
+          settingsButton.style.marginLeft = '8px';
+          settingsButton.style.marginTop = '0';
+          settingsButton.style.marginBottom = '0';
+        } else {
+          // 上下排列
+          settingsButton.style.top = '100%';
+          settingsButton.style.left = '50%';
+          settingsButton.style.transform = 'translateX(-50%)';
+          settingsButton.style.marginTop = '8px';
+          settingsButton.style.marginLeft = '0';
+          settingsButton.style.marginBottom = '0';
+        }
+      }
+    }
+
     // 如果对话框已打开，跟随悬浮球移动
     const dialog = document.getElementById("july-ai-dialog");
-    if (dialog && dialog.style.display === "flex" && window.calculateDialogPosition) {
+    if (
+      dialog &&
+      dialog.style.display === "flex" &&
+      window.calculateDialogPosition
+    ) {
+      const dialogPosition = window.calculateDialogPosition(ball);
+      dialog.style.left = dialogPosition.left + "px";
+      dialog.style.top = dialogPosition.top + "px";
+    }
+    
+    // 同步移动对话框 - 拖拽对话框时，悬浮球也跟着移动
+    if (dialog && dialog.style.display === "flex") {
+      const ballRect = container.getBoundingClientRect();
       const dialogPosition = window.calculateDialogPosition(ball);
       dialog.style.left = dialogPosition.left + "px";
       dialog.style.top = dialogPosition.top + "px";
@@ -306,6 +461,41 @@ function createFloatingBall() {
 
   // 添加CSS样式
   const style = document.createElement("style");
+  // 智能布局系统：根据边缘类型动态调整按钮位置
+  const smartLayoutCSS = `
+    /* 智能布局：顶部和底部边缘时使用左右排列 */
+    .ball-container:has(#ai-assistant-ball.edge-top) .settings-button,
+    .ball-container:has(#ai-assistant-ball.edge-bottom) .settings-button {
+      top: 50%;
+      left: 100%;
+      transform: translateY(-50%);
+      margin-left: 8px;
+      margin-top: 0;
+      margin-bottom: 0;
+    }
+
+    /* 智能布局：左右边缘时使用上下排列 */
+    .ball-container:has(#ai-assistant-ball.edge-left) .settings-button,
+    .ball-container:has(#ai-assistant-ball.edge-right) .settings-button {
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      margin-top: 8px;
+      margin-left: 0;
+      margin-bottom: 0;
+    }
+
+    /* 默认状态（无边缘吸附时）使用上下排列 */
+    .ball-container:not(:has(#ai-assistant-ball.edge-top)):not(:has(#ai-assistant-ball.edge-bottom)):not(:has(#ai-assistant-ball.edge-left)):not(:has(#ai-assistant-ball.edge-right)) .settings-button {
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      margin-top: 8px;
+      margin-left: 0;
+      margin-bottom: 0;
+    }
+  `;
+  
   style.textContent = `
     .ai-ball {
       transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
@@ -342,39 +532,63 @@ function createFloatingBall() {
     
     /* 容器不使用动画，只对球体使用动画 */
     .ball-container {
-      /* 移除容器的过渡动画 */
     }
 
-    /* 设置按钮位置调整 */
-    .ball-container:has(#ai-assistant-ball.edge-bottom) .settings-button {
-      top: auto;
-      bottom: 100%;
-      margin-top: 0;
-      margin-bottom: 8px;
-    }
-
-    .ball-container:has(#ai-assistant-ball.edge-top) .settings-button {
-      top: 100%;
-      bottom: auto;
-      margin-bottom: 0;
-      margin-top: 8px;
-    }
-
-    .ball-container:has(#ai-assistant-ball.edge-left) .settings-button {
-      top: 100%;
-      bottom: auto;
-      margin-bottom: 0;
-      margin-top: 8px;
-    }
-
-    .ball-container:has(#ai-assistant-ball.edge-right) .settings-button {
-      top: 100%;
-      bottom: auto;
-      margin-bottom: 0;
-      margin-top: 8px;
-    }
+    ${smartLayoutCSS}
   `;
   document.head.appendChild(style);
+
+  // 如果启用顶部和底部按钮，创建额外的按钮
+  if (CONFIG.showTopBottomButtons && CONFIG.buttonLayout === 'horizontal') {
+    const topButton = document.createElement("div");
+    topButton.className = "top-button";
+    topButton.title = "顶部功能";
+    topButton.style.cssText = `
+      position: absolute;
+      top: 50%;
+      right: 100%;
+      transform: translateY(-50%);
+      width: 30px;
+      height: 30px;
+      background-color: #34C759;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      margin-right: 8px;
+      transition: all 0.3s ease;
+      z-index: 2147483646;
+    `;
+    
+    // 添加顶部按钮图标
+    topButton.innerHTML = `
+      <svg width="20" height="20" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg">
+        <path d="M512 64L128 448h192v448h384V448h192L512 64z" fill="white"/>
+      </svg>
+    `;
+    
+    // 添加顶部按钮点击事件
+    topButton.addEventListener("click", function (e) {
+      e.stopPropagation();
+      // 这里可以添加顶部按钮的功能
+      console.log("顶部按钮被点击");
+    });
+    
+    // 添加顶部按钮悬停效果
+    topButton.addEventListener("mouseenter", function () {
+      this.style.backgroundColor = "#28a745";
+      this.style.transform = "translateY(-50%) scale(1.1)";
+    });
+    
+    topButton.addEventListener("mouseleave", function () {
+      this.style.backgroundColor = "#34C759";
+      this.style.transform = "translateY(-50%) scale(1)";
+    });
+    
+    container.appendChild(topButton);
+  }
 
   // 将悬浮球添加到页面
   container.appendChild(ball);
